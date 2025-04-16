@@ -1,0 +1,9 @@
+Title: Bounded, compact and Schatten classes Hankel operators on weighted Fock spaces
+DOI: 10.1007/s10473-025-0416-z
+Abstract: Let ϕ be a smooth radial weight that decays faster than the class Gaussian ones. 
+We obtain certain estimates for the reproducing kernels and the L ^ p -estimates for solutions of the $$\overline{\partial}$$ ∂ ¯ 
+-equation on the weighted Fock spaces $$F_{\phi}^p~(1\leq p\leq\infty)$$ F ϕ p ( 1 ≤ p ≤ ∞ ) , which extends the classical Hörmander Theorem. 
+Furthermore, for a suitable f , we completely characterize the boundedness and compactness of the Hankel operator $$H_f:F_{\phi}^p\rightarrow L^q(\mathbb{C},
+{\rm e}^{-q\phi(\cdot)}{\rm d}m)$$ H f : F ϕ p → L q ( C , e − q ϕ ( ⋅ ) d m ) for all possible 1 ≤ p, q < ∞ and also characterize the Schatten- p class Hank
+el operator H _ f from $$F_{\phi}^2$$ F ϕ 2 to L ^2(ℂ, e^−2 ϕ d m ) for all 0 < p < ∞. As an application, we give a complete characterization of the simultaneously bounded, 
+compact and Schatten- p classes Hankel operators H _ f and $$H_{\overline{f}}$$ H f ¯ on $$F_\phi^2$$ F ϕ 2 .

@@ -1,0 +1,12 @@
+Title: Nonlinear wave transitions and their mechanisms of the (2+1)-dimensional Korteweg-de Vries-Sawada-Kotera-Ramani equation
+DOI: 10.1007/s10473-025-0410-5
+Abstract: In this work, we study wave state transitions of the (2+1)-dimensional Kortewegde Vries-Sawada-Kotera-Ramani (2KdVSKR) 
+equation by analyzing the characteristic line and phase shift. 
+By converting the wave parameters of the N-soliton solution into complex numbers, the breath wave solution is constructed. 
+The lump wave solution is derived through the long wave limit method. Then, by choosing appropriate parameter values, we acquire a 
+number of transformed nonlinear waves whose gradient relation is discussed according to the ratio of the wave parameters. Furthermore, 
+we reveal transition mechanisms of the waves by exploring the nonlinear superposition of the solitary and periodic wave components. 
+Subsequently, locality, oscillation properties and evolutionary phenomenon of the transformed waves are presented. 
+And we also prove the change in the geometrical properties of the characteristic lines leads to the phenomena of wave evolution. 
+Finally, for higher-order waves, a range of interaction models are depicted along with their evolutionary phenomena. 
+And we demonstrate that their diversity is due to the fact that the solitary and periodic wave components produce different phase shifts caused by time evolution and collisions.
