@@ -64,7 +64,7 @@ class RedisService:
                 results = []
                 async for doc in cursor:
                     results.append({
-                        "resultId": str(doc["result_id"]),
+                        "resultId": str(doc["_id"]),
                         "source": doc["source"],
                         "text": doc["text"],
                         "created_at": doc["created_at"].isoformat()

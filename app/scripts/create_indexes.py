@@ -1,7 +1,6 @@
 import os
 import sys
 from motor.motor_asyncio import AsyncIOMotorClient
-from bson import Binary
 from dotenv import load_dotenv
 
 # Thêm thư mục gốc vào Python path
@@ -13,22 +12,27 @@ load_dotenv()
 
 async def create_indexes():
     # Kết nối MongoDB
-    client = AsyncIOMotorClient(os.getenv("MONGODB_URI"), uuidRepresentation='standard')
+    client = AsyncIOMotorClient(os.getenv("MONGODB_URI"))
     db = client.data_management
     
     # Tạo index cho tasks collection
     tasks_collection = db.tasks
-    await tasks_collection.create_index("task_id", unique=True)
+    # Index cho topics (để tìm kiếm theo chủ đề)
     await tasks_collection.create_index("topics")
+    # Index cho created_at (để sắp xếp theo thời gian)
     await tasks_collection.create_index("created_at")
     print("Created indexes for tasks collection")
     
     # Tạo index cho results collection
     results_collection = db.results
-    await results_collection.create_index("result_id", unique=True)
+    # Index cho task_id (để tìm kiếm kết quả theo task)
     await results_collection.create_index("task_id")
+    # Index cho topic (để tìm kiếm theo chủ đề)
     await results_collection.create_index("topic")
+    # Index cho created_at (để sắp xếp theo thời gian)
     await results_collection.create_index("created_at")
+    # Compound index cho task_id và topic (để tìm kiếm nhanh hơn)
+    await results_collection.create_index([("task_id", 1), ("topic", 1)])
     print("Created indexes for results collection")
 
 if __name__ == "__main__":

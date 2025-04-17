@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import logging
 import json
 from typing import List
+import re
 
 load_dotenv()
 
@@ -25,6 +26,7 @@ class GeminiService:
                 {{
                   "topics": ["chủ đề 1", "chủ đề 2", ...]
                 }}
+                Chỉ trả về JSON, không có bất kỳ text nào khác.
                 """
             elif language == 'en':
                 prompt = f"""
@@ -34,6 +36,7 @@ class GeminiService:
                 {{
                   "topics": ["topic 1", "topic 2", ...]
                 }}
+                Return only JSON, no other text.
                 """
             else:
                 prompt = f"""
@@ -43,16 +46,43 @@ class GeminiService:
                 {{
                   "topics": ["topic 1", "topic 2", ...]
                 }}
+                Return only JSON, no other text.
                 """
             
+      
+            # Sử dụng generation_config đúng cách
             response = await self.model.generate_content_async(
                 prompt,
-                generation_config={"response_mime_type": "application/json"}
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.7,
+                    top_p=0.8,
+                    top_k=40,
+                    max_output_tokens=2048,
+                )
             )
             
+                   
+            # Tìm JSON trong response
+            json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
+            if not json_match:
+                logger.error(f"No JSON found in response: {response.text}")
+                return [user_input]
+                
+            json_str = json_match.group()
+            logger.info(f"Extracted JSON: {json_str}")
+            
             # Parse JSON response và trả về danh sách topics
-            result = json.loads(response.text)
+            result = json.loads(json_str)
+            if "topics" not in result:
+                logger.error(f"Invalid JSON structure: {result}")
+                return [user_input]
+                
             return result["topics"]
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {str(e)}")
+            logger.error(f"Response text: {response.text}")
+            return [user_input]
         except Exception as e:
             logger.error(f"Error extracting topics with Gemini: {str(e)}")
             return [user_input]  # Trả về input gốc trong một list nếu có lỗi 
