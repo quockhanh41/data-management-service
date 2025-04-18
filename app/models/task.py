@@ -9,6 +9,7 @@ class TaskStatus(str):
     FAILED = "failed"
 
 class Task(BaseModel):
+    input_user: str
     topics: List[str]
     sources: List[str]  
     language: str

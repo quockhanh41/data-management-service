@@ -20,36 +20,65 @@ class GeminiService:
             # Tạo prompt phù hợp với ngôn ngữ
             if language == 'vi':
                 prompt = f"""
-                Phân tích nội dung sau và trích xuất tất cả các chủ đề chính (topics) một cách ngắn gọn, chỉ bao gồm bản chất của chủ đề, loại bỏ các chi tiết như "video", "bài viết", "cho tôi", v.v.:
+                Phân tích nội dung sau và trích xuất các chủ đề chính có thể tìm kiếm được trên Wikipedia:
                 "{user_input}"
+
+                Yêu cầu:
+                1. Chỉ trích xuất các chủ đề có thể tìm kiếm được trên Wikipedia
+                2. Mỗi chủ đề phải là một khái niệm, sự kiện, nhân vật hoặc địa điểm cụ thể
+                3. Loại bỏ các từ ngữ không cần thiết như "tôi muốn", "cho tôi", "bài viết", "video"
+                4. Giữ lại ngữ cảnh quan trọng để hiểu mục đích tìm kiếm
+                5. Sắp xếp các chủ đề theo mức độ liên quan
+
                 Kết quả trả về theo định dạng JSON:
                 {{
-                  "topics": ["chủ đề 1", "chủ đề 2", ...]
+                  "topics": ["chủ đề 1", "chủ đề 2", ...],
+                  "context": "ngữ cảnh tìm kiếm"
                 }}
+
                 Chỉ trả về JSON, không có bất kỳ text nào khác.
                 """
             elif language == 'en':
                 prompt = f"""
-                Analyze the following content and extract all main topics concisely, focusing only on the essence of the topics, removing details like "video", "article", "give me", etc.:
+                Analyze the following content and extract Wikipedia-searchable topics:
                 "{user_input}"
+
+                Requirements:
+                1. Extract only topics that can be searched on Wikipedia
+                2. Each topic should be a specific concept, event, person, or location
+                3. Remove unnecessary words like "I want", "give me", "article", "video"
+                4. Keep important context to understand search intent
+                5. Sort topics by relevance
+
                 Return the result in JSON format:
                 {{
-                  "topics": ["topic 1", "topic 2", ...]
+                  "topics": ["topic 1", "topic 2", ...],
+                  "context": "search context"
                 }}
+
                 Return only JSON, no other text.
                 """
             else:
                 prompt = f"""
-                Analyze the following content and extract all main topics concisely, focusing only on the essence of the topics, removing details like "video", "article", "give me", etc.:
-                "{user_input}"
+                Analyze the following content and extract Wikipedia-searchable topics:
+                "{user_input} in {language}"
+
+                Requirements:
+                1. Extract only topics that can be searched on Wikipedia
+                2. Each topic should be a specific concept, event, person, or location
+                3. Remove unnecessary words like "I want", "give me", "article", "video"
+                4. Keep important context to understand search intent
+                5. Sort topics by relevance
+
                 Return the result in JSON format:
                 {{
-                  "topics": ["topic 1", "topic 2", ...]
+                  "topics": ["topic 1", "topic 2", ...],
+                  "context": "search context"
                 }}
+
                 Return only JSON, no other text.
                 """
             
-      
             # Sử dụng generation_config đúng cách
             response = await self.model.generate_content_async(
                 prompt,
@@ -61,7 +90,6 @@ class GeminiService:
                 )
             )
             
-                   
             # Tìm JSON trong response
             json_match = re.search(r'\{.*\}', response.text, re.DOTALL)
             if not json_match:
@@ -85,7 +113,7 @@ class GeminiService:
             return [user_input]
         except Exception as e:
             logger.error(f"Error extracting topics with Gemini: {str(e)}")
-            return [user_input]  # Trả về input gốc trong một list nếu có lỗi 
+            return [user_input]  # Trả về input gốc trong một list nếu có lỗi
         
 # test
 if __name__ == "__main__":

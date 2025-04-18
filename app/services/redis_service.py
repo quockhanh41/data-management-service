@@ -1,59 +1,153 @@
-import redis
+import redis.asyncio as redis
 import asyncio
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import Binary
-from datetime import datetime
+from datetime import datetime, UTC
 import os
 from dotenv import load_dotenv
 import json
+import logging
+from app.services.mongodb_service import MongoDBService
 
 load_dotenv()
 
+logger = logging.getLogger(__name__)
+
 class RedisService:
     def __init__(self):
-         # Kết nối Redis sử dụng URL từ biến môi trường
-        redis_url = os.getenv('REDIS_HOST')
-        self.redis_client = redis.from_url(redis_url)
-        
+        """Khởi tạo Redis client"""
+        self.redis_client = None
+        self._update_task = None
+        self._is_running = False
+        self._max_retries = 3
+        self._retry_delay = 5  # giây
+
         self.mongo_client = AsyncIOMotorClient(os.getenv("MONGODB_URI"), uuidRepresentation='standard')
         self.db = self.mongo_client.data_management
         self.tasks_collection = self.db.tasks
         self.results_collection = self.db.results
 
-    async def update_popular_topics(self):
-        """Cập nhật danh sách 5 chủ đề phổ biến từ MongoDB vào Redis"""
+    async def connect(self):
+        """Kết nối đến Redis server với retry"""
+        retry_count = 0
+        while retry_count < self._max_retries:
+            try:
+                # Lấy thông tin kết nối từ biến môi trường
+                redis_url = os.getenv("REDIS_URL")
+                if not redis_url:
+                    raise ValueError("REDIS_URL environment variable is not set")
+
+                # Tạo kết nối Redis
+                self.redis_client = redis.from_url(
+                    redis_url,
+                    decode_responses=True,
+                    socket_timeout=5,
+                    socket_connect_timeout=5,
+                    retry_on_timeout=True
+                )
+
+                # Kiểm tra kết nối
+                await self.redis_client.ping()
+                logger.info("Successfully connected to Redis")
+                return
+
+            except Exception as e:
+                retry_count += 1
+                logger.error(f"Failed to connect to Redis (attempt {retry_count}/{self._max_retries}): {str(e)}")
+                
+                if retry_count < self._max_retries:
+                    logger.info(f"Retrying in {self._retry_delay} seconds...")
+                    await asyncio.sleep(self._retry_delay)
+                else:
+                    logger.error("Max retries reached. Could not connect to Redis")
+                    raise
+
+    async def close(self):
+        """Đóng kết nối Redis và dừng task cập nhật"""
+        if self._update_task:
+            self._is_running = False
+            self._update_task.cancel()
+            try:
+                await self._update_task
+            except asyncio.CancelledError:
+                pass
+
+        if self.redis_client:
+            await self.redis_client.close()
+            logger.info("Disconnected from Redis")
+
+    async def _ensure_connection(self):
+        """Đảm bảo kết nối Redis đang hoạt động"""
+        if not self.redis_client:
+            await self.connect()
         try:
-            # Lấy 5 chủ đề được tìm kiếm nhiều nhất trong 24h qua
-            pipeline = [
-                {
-                    "$match": {
-                        "created_at": {
-                            "$gte": datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-                        }
-                    }
-                },
-                {"$unwind": "$topics"},
-                {"$group": {"_id": "$topics", "count": {"$sum": 1}}},
-                {"$sort": {"count": -1}},
-                {"$limit": 5}
-            ]
-            
-            cursor = self.tasks_collection.aggregate(pipeline)
-            popular_topics = []
-            async for doc in cursor:
-                popular_topics.append(doc["_id"])
-            
-            # Lưu vào Redis
-            self.redis_client.set("popular_topics", json.dumps(popular_topics))
-            print(f"Updated popular topics: {popular_topics}")
+            await self.redis_client.ping()
+        except Exception:
+            logger.warning("Redis connection lost, attempting to reconnect...")
+            await self.connect()
+
+    async def update_popular_topics(self, topics: list):
+        """Cập nhật danh sách chủ đề phổ biến vào Redis"""
+        try:
+            await self._ensure_connection()
+            await self.redis_client.set(
+                "popular_topics",
+                json.dumps(topics),
+                ex=3600  # TTL 1 giờ
+            )
+            logger.info(f"Updated list of {len(topics)} popular topics in Redis")
         except Exception as e:
-            print(f"Error updating popular topics: {str(e)}")
+            logger.error(f"Error updating popular topics: {str(e)}")
+            raise
+
+    async def get_popular_topics(self) -> list:
+        """Lấy danh sách chủ đề phổ biến từ Redis"""
+        try:
+            await self._ensure_connection()
+            topics_json = await self.redis_client.get("popular_topics")
+            if topics_json:
+                return json.loads(topics_json)
+            return []
+        except Exception as e:
+            logger.error(f"Error getting popular topics: {str(e)}")
+            return []
+
+    async def _update_popular_topics_from_mongodb(self):
+        """Cập nhật danh sách chủ đề phổ biến từ MongoDB"""
+        try:
+            mongodb_service = MongoDBService()
+            popular_topics = await mongodb_service.get_popular_topics()
+            await self.update_popular_topics(popular_topics)
+            logger.info(f"Updated Redis with {len(popular_topics)} topics from MongoDB")
+        except Exception as e:
+            logger.error(f"Error updating from MongoDB: {str(e)}")
+
+    async def start_update_loop(self):
+        """Bắt đầu vòng lặp cập nhật Redis tự động"""
+        if self._is_running:
+            return
+
+        self._is_running = True
+        self._update_task = asyncio.create_task(self._update_loop())
+
+    async def _update_loop(self):
+        """Vòng lặp cập nhật Redis mỗi 30 phút"""
+        while self._is_running:
+            try:
+                await self._update_popular_topics_from_mongodb()
+                await self.update_topic_data()
+                logger.info(f"Redis update completed at {datetime.now(UTC)}")
+            except Exception as e:
+                logger.error(f"Error in update loop: {str(e)}")
+            
+            # Đợi 30 phút trước khi cập nhật lại
+            await asyncio.sleep(1800)  # 1800 giây = 30 phút
 
     async def update_topic_data(self):
         """Cập nhật dữ liệu đã crawl cho từng chủ đề phổ biến"""
         try:
             # Lấy danh sách chủ đề phổ biến từ Redis
-            popular_topics = json.loads(self.redis_client.get("popular_topics") or "[]")
+            popular_topics = await self.get_popular_topics()
             
             for topic in popular_topics:
                 # Lấy 5 kết quả mới nhất cho mỗi chủ đề
@@ -66,31 +160,16 @@ class RedisService:
                     results.append({
                         "resultId": str(doc["_id"]),
                         "source": doc["source"],
+                        "language": doc["language"],
                         "text": doc["text"],
                         "created_at": doc["created_at"].isoformat()
                     })
                 
                 # Lưu vào Redis với key là topic
-                self.redis_client.set(f"topic:{topic}", json.dumps(results))
-                print(f"Updated data for topic: {topic}")
+                await self.redis_client.set(f"topic:{topic}", json.dumps(results))
+                logger.info(f"Updated data for topic: {topic}")
         except Exception as e:
-            print(f"Error updating topic data: {str(e)}")
-
-    async def start_update_loop(self):
-        """Bắt đầu vòng lặp cập nhật dữ liệu mỗi 5 phút"""
-        while True:
-            await self.update_popular_topics()
-            await self.update_topic_data()
-            await asyncio.sleep(300)  # 5 phút
-
-    def get_popular_topics(self):
-        """Lấy danh sách chủ đề phổ biến từ Redis"""
-        try:
-            topics = self.redis_client.get("popular_topics")
-            return json.loads(topics) if topics else []
-        except Exception as e:
-            print(f"Error getting popular topics: {str(e)}")
-            return []
+            logger.error(f"Error updating topic data: {str(e)}")
 
     def get_topic_data(self, topic: str):
         """Lấy dữ liệu đã crawl cho một chủ đề cụ thể"""
@@ -98,5 +177,5 @@ class RedisService:
             data = self.redis_client.get(f"topic:{topic}")
             return json.loads(data) if data else []
         except Exception as e:
-            print(f"Error getting topic data: {str(e)}")
+            logger.error(f"Error getting topic data: {str(e)}")
             return [] 
