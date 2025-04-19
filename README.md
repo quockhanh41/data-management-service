@@ -2,6 +2,13 @@
 
 Hệ thống quản lý và crawl dữ liệu từ nhiều nguồn khác nhau.
 
+## Yêu cầu hệ thống
+
+- Python 3.11.6
+- MongoDB 6.0+
+- Redis 7.0+
+- RabbitMQ 3.12+
+
 ## Các Service Chính
 
 ### 1. Crawler Service
@@ -94,22 +101,45 @@ Service quản lý message queue với RabbitMQ.
 
 ## Cài đặt và Chạy
 
-1. Cài đặt các dependencies:
+1. Tạo và kích hoạt môi trường ảo:
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Linux/Mac
+.venv\Scripts\activate     # Windows
+```
+
+2. Cài đặt các dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Cấu hình biến môi trường:
+3. Cấu hình biến môi trường:
 ```bash
 export MONGODB_URI="mongodb://localhost:27017"
 export REDIS_URL="redis://localhost:6379"
 export RABBITMQ_URL="amqp://localhost:5672"
+export GEMINI_API_KEY="your_gemini_api_key"
 ```
 
-3. Chạy service:
+4. Chạy service:
 ```bash
 python main.py
 ```
+
+## Deploy trên Railway
+
+1. Tạo file `runtime.txt` với nội dung:
+```
+python-3.11.6
+```
+
+2. Cấu hình các biến môi trường trên Railway dashboard:
+- MONGODB_URI
+- REDIS_URL
+- RABBITMQ_URL
+- GEMINI_API_KEY
+
+3. Deploy code lên Railway
 
 ## Xử lý lỗi
 
