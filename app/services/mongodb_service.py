@@ -44,22 +44,29 @@ class MongoDBService:
                     "$match": {
                         "created_at": {
                             "$gte": datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-                        }
+                        },
+                        "topics": {"$exists": True, "$ne": []}
                     }
                 },
                 {"$unwind": "$topics"},
                 {"$group": {"_id": "$topics", "count": {"$sum": 1}}},
                 {"$sort": {"count": -1}},
-                {"$limit": limit}
+                # {"$limit": limit * 2}  # Lấy gấp đôi để dự phòng
             ]
             
             cursor = self.tasks_collection.aggregate(pipeline)
             popular_topics = []
-            async for doc in cursor:
-                popular_topics.append(doc["_id"])
             
-            logger.info(f"Retrieved {len(popular_topics)} popular topics from MongoDB")
-            return popular_topics
+            async for doc in cursor:
+                # Kiểm tra xem chủ đề có tồn tại trong results_collection không
+                result = await self.results_collection.find_one({"topic": doc["_id"]})
+                if result:
+                    popular_topics.append(doc["_id"])
+                    if len(popular_topics) >= limit:
+                        break
+            
+            return popular_topics[:limit]  # Đảm bảo trả về đúng số lượng yêu cầu
+            
         except Exception as e:
             logger.error(f"Error getting popular topics: {str(e)}")
             return []

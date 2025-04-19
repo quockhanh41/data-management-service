@@ -29,7 +29,7 @@ class GeminiService:
                 3. Loại bỏ các từ ngữ không cần thiết như "tôi muốn", "cho tôi", "bài viết", "video"
                 4. Giữ lại ngữ cảnh quan trọng để hiểu mục đích tìm kiếm
                 5. Sắp xếp các chủ đề theo mức độ liên quan
-
+                6. Chủ đề không được mở ngoặc ghi chú gì thêm, ví dụ: "Khế (thực vật)"
                 Kết quả trả về theo định dạng JSON:
                 {{
                   "topics": ["chủ đề 1", "chủ đề 2", ...],
@@ -49,7 +49,7 @@ class GeminiService:
                 3. Remove unnecessary words like "I want", "give me", "article", "video"
                 4. Keep important context to understand search intent
                 5. Sort topics by relevance
-
+                6. Topic should not be in parentheses, for example: "Khế (thực vật)"
                 Return the result in JSON format:
                 {{
                   "topics": ["topic 1", "topic 2", ...],
@@ -69,7 +69,7 @@ class GeminiService:
                 3. Remove unnecessary words like "I want", "give me", "article", "video"
                 4. Keep important context to understand search intent
                 5. Sort topics by relevance
-
+                6. Topic should not be in parentheses, for example: "Khế (thực vật)"
                 Return the result in JSON format:
                 {{
                   "topics": ["topic 1", "topic 2", ...],

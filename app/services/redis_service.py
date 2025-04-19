@@ -86,7 +86,7 @@ class RedisService:
             logger.warning("Redis connection lost, attempting to reconnect...")
             await self.connect()
 
-    async def update_popular_topics(self, topics: list):
+    async def update_popular_topics_for_redis(self, topics: list):
         """Cập nhật danh sách chủ đề phổ biến vào Redis"""
         try:
             await self._ensure_connection()
@@ -100,7 +100,7 @@ class RedisService:
             logger.error(f"Error updating popular topics: {str(e)}")
             raise
 
-    async def get_popular_topics(self) -> list:
+    async def get_popular_topics_from_redis(self) -> list:
         """Lấy danh sách chủ đề phổ biến từ Redis"""
         try:
             await self._ensure_connection()
@@ -112,12 +112,12 @@ class RedisService:
             logger.error(f"Error getting popular topics: {str(e)}")
             return []
 
-    async def _update_popular_topics_from_mongodb(self):
+    async def update_popular_topics_from_mongodb_to_redis(self):
         """Cập nhật danh sách chủ đề phổ biến từ MongoDB"""
         try:
             mongodb_service = MongoDBService()
             popular_topics = await mongodb_service.get_popular_topics()
-            await self.update_popular_topics(popular_topics)
+            await self.update_popular_topics_for_redis(popular_topics)
             logger.info(f"Updated Redis with {len(popular_topics)} topics from MongoDB")
         except Exception as e:
             logger.error(f"Error updating from MongoDB: {str(e)}")
@@ -134,7 +134,7 @@ class RedisService:
         """Vòng lặp cập nhật Redis mỗi 30 phút"""
         while self._is_running:
             try:
-                await self._update_popular_topics_from_mongodb()
+                await self.update_popular_topics_from_mongodb_to_redis()
                 await self.update_topic_data()
                 logger.info(f"Redis update completed at {datetime.now(UTC)}")
             except Exception as e:
@@ -147,35 +147,52 @@ class RedisService:
         """Cập nhật dữ liệu đã crawl cho từng chủ đề phổ biến"""
         try:
             # Lấy danh sách chủ đề phổ biến từ Redis
-            popular_topics = await self.get_popular_topics()
+            popular_topics = await self.get_popular_topics_from_redis()
+            print(popular_topics)
             
             for topic in popular_topics:
-                # Lấy 5 kết quả mới nhất cho mỗi chủ đề
-                cursor = self.results_collection.find(
-                    {"topic": topic}
-                ).sort("created_at", -1).limit(5)
-                
-                results = []
-                async for doc in cursor:
-                    results.append({
-                        "resultId": str(doc["_id"]),
-                        "source": doc["source"],
-                        "language": doc["language"],
-                        "text": doc["text"],
-                        "created_at": doc["created_at"].isoformat()
-                    })
-                
-                # Lưu vào Redis với key là topic
-                await self.redis_client.set(f"topic:{topic}", json.dumps(results))
-                logger.info(f"Updated data for topic: {topic}")
+                try:
+                    # Lấy 1 kết quả mới nhất cho mỗi chủ đề từ mongodb dựa vào bảng results
+                    cursor = self.results_collection.find(
+                        {"topic": topic}
+                    ).sort("created_at", -1).limit(1)
+                    
+                    results = []
+                    async for doc in cursor:
+                        results.append({
+                            "resultId": str(doc["_id"]),
+                            "source": doc["source"],
+                            "language": doc["language"],
+                            "text": doc["text"],
+                            "created_at": doc["created_at"].isoformat()
+                        })
+                    
+                    if results:
+                        # Lưu vào Redis với key là topic và language
+        
+                        await self.redis_client.set(
+                            f"topic: {topic}, language: {results[0]['language']}", 
+                            json.dumps(results[0])
+                        )
+                        logger.info(f"Updated data for topic: {topic} in language: {results[0]['language']}")
+                    else:
+                        logger.warning(f"No results found for topic: {topic}")
+                        
+                except Exception as e:
+                    logger.error(f"Error processing topic {topic}: {str(e)}")
+                    continue
+                    
         except Exception as e:
             logger.error(f"Error updating topic data: {str(e)}")
 
-    def get_topic_data(self, topic: str):
+    async def get_topic_data(self, topic: str, language: str):
         """Lấy dữ liệu đã crawl cho một chủ đề cụ thể"""
         try:
-            data = self.redis_client.get(f"topic:{topic}")
-            return json.loads(data) if data else []
+            await self._ensure_connection()
+            data = await self.redis_client.get(f"topic: {topic}, language: {language}")
+            if data:
+                return json.loads(data)
+            return []
         except Exception as e:
             logger.error(f"Error getting topic data: {str(e)}")
             return [] 

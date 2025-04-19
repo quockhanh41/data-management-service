@@ -31,8 +31,6 @@ async def create_indexes():
     await results_collection.create_index("topic")
     # Index cho created_at (để sắp xếp theo thời gian)
     await results_collection.create_index("created_at")
-    # Compound index cho task_id và topic (để tìm kiếm nhanh hơn)
-    await results_collection.create_index([("task_id", 1), ("topic", 1)])
     print("Created indexes for results collection")
 
 if __name__ == "__main__":

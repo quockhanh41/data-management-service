@@ -38,7 +38,7 @@ class ResultResponse(BaseModel):
 @router.get("/data/suggestions")
 async def get_popular_topics():
     """Lấy danh sách chủ đề phổ biến"""
-    return await redis_service.get_popular_topics()
+    return await redis_service.get_popular_topics_from_redis()
 
 @router.post("/data/crawl")
 async def crawl_data(request: CrawlRequest):

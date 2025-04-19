@@ -1,33 +1,91 @@
 import wikipediaapi
-from typing import List, Dict
+from typing import List, Dict, Optional
 import logging
 import os
-from dotenv import load_dotenv
 import requests
-load_dotenv()
+import asyncio
+from datetime import datetime, UTC
+import json
+
 
 logger = logging.getLogger(__name__)
 
 class Crawler:
-    def __init__(self):
+    def __init__(self, redis_service, mongodb_service):
         self.wiki = wikipediaapi.Wikipedia(
             # user_agent=os.getenv('WIKIPEDIA_API_USER_AGENT'),
             language='en'  # Default language, will be changed in crawl_wikipedia
         )
+        self.redis_service = redis_service
+        self.mongodb_service = mongodb_service
+
+    async def check_redis_cache(self, topic: str, language: str) -> Optional[str]:
+        """Kiểm tra dữ liệu trong Redis cache
+        
+        Args:
+            topic: Chủ đề cần kiểm tra
+            language: Ngôn ngữ
+            
+        Returns:
+            str: Nội dung từ cache nếu có, None nếu không có
+        """
+        try:
+            cached_content = await self.redis_service.get_topic_data(topic, language)
+            if cached_content:
+                logger.info(f"Found cached content for {topic} in {language}")
+                return cached_content
+            return None
+        except Exception as e:
+            logger.error(f"Error checking Redis cache: {str(e)}")
+            return None
+
+    async def check_mongodb(self, topic: str, language: str) -> Optional[str]:
+        """Kiểm tra dữ liệu trong MongoDB
+        
+        Args:
+            topic: Chủ đề cần kiểm tra
+            language: Ngôn ngữ
+            
+        Returns:
+            str: Nội dung từ MongoDB nếu có, None nếu không có
+        """
+        try:
+            result = await self.mongodb_service.results_collection.find_one({
+                "topic": topic,
+                "language": language
+            })
+            if result:
+                logger.info(f"Found content in MongoDB for {topic} in {language}")
+                return result["text"]
+            return None
+        except Exception as e:
+            logger.error(f"Error checking MongoDB: {str(e)}")
+            return None
 
     async def crawl_wikipedia(self, topic: str, language: str) -> str:
+        """Crawl dữ liệu từ Wikipedia
+        
+        Args:
+            topic: Chủ đề cần crawl
+            language: Ngôn ngữ
+            
+        Returns:
+            str: Nội dung đã crawl được
+        """
         try:
-            # Create a new Wikipedia instance with the specified language
+            # Tạo instance Wikipedia với ngôn ngữ được chỉ định
             wiki = wikipediaapi.Wikipedia(
-                # user_agent=os.getenv('WIKIPEDIA_API_USER_AGENT'),
                 language=language
             )
             
-            # Get the page
+            # Lấy trang
             page = wiki.page(topic)
             
             if page.exists():
-                return page.text
+                content = page.text
+                # Lưu vào Redis set TTL is 1 hour
+                await self.redis_service.redis_client.set(f"topic: {topic}, language: {language}", json.dumps(content), ex=3600)
+                return content
             else:
                 logger.warning(f"Wikipedia page not found for topic: {topic}")
                 return ""
@@ -62,18 +120,97 @@ class Crawler:
         # Implement PubMed crawling logic
         return ""
 
-    async def crawl(self, topic: str, sources: List[str], language: str) -> Dict[str, str]:
+    async def crawl(self, task_id: str, topic: str, sources: List[str], language: str) -> Dict[str, str]:
+        """Crawl dữ liệu từ nhiều nguồn
+        
+        Args:
+            task_id: ID của task
+            topic: Chủ đề cần crawl
+            sources: Danh sách nguồn dữ liệu
+            language: Ngôn ngữ
+            
+        Returns:
+            Dict[str, str]: Kết quả crawl từ các nguồn
+        """
         results = {}
         for source in sources:
             if source == "wikipedia":
-                results[source] = await self.crawl_wikipedia(topic, language)
+                try:
+                    # Tạo các task cho 3 nguồn dữ liệu
+                    redis_task = asyncio.create_task(self.check_redis_cache(topic, language))
+                    mongodb_task = asyncio.create_task(self.check_mongodb(topic, language))
+                    wiki_task = asyncio.create_task(self.crawl_wikipedia(topic, language))
+                    
+                    # Đợi task đầu tiên hoàn thành và có kết quả khác None
+                    while True:
+                        done, pending = await asyncio.wait(
+                            [redis_task, mongodb_task, wiki_task],
+                            return_when=asyncio.FIRST_COMPLETED
+                        )
+                        
+                        completed_task = done.pop()
+                        content = completed_task.result()
+                        
+                        # Nếu có kết quả hợp lệ, dừng vòng lặp
+                        if content is not None and content != "":
+                            # Hủy các task còn lại
+                            for task in pending:
+                                task.cancel()
+                            break
+                            
+                        # Nếu wiki_task trả về kết quả rỗng, dừng vòng lặp
+                        if completed_task == wiki_task:
+                            # Hủy các task còn lại
+                            for task in pending:
+                                task.cancel()
+                            break
+                            
+                        # Nếu không có kết quả, tiếp tục đợi task khác
+                        if completed_task == redis_task:
+                            redis_task = asyncio.create_task(self.check_redis_cache(topic, language))
+                        elif completed_task == mongodb_task:
+                            mongodb_task = asyncio.create_task(self.check_mongodb(topic, language))
+                        else:
+                            wiki_task = asyncio.create_task(self.crawl_wikipedia(topic, language))
+                    
+                    # Xác định nguồn dữ liệu
+                    if completed_task == redis_task:
+                        logger.info(f"Using cached content from Redis for topic {topic}")
+                    elif completed_task == mongodb_task:
+                        logger.info(f"Using content from MongoDB for topic {topic}")
+                    else:
+                        logger.info(f"Using content from Wikipedia for topic {topic}")
+                        # Lưu vào MongoDB nếu có dữ liệu mới
+                        if content:
+                            try:
+                                result_id = await self.mongodb_service.insert_result(
+                                    task_id=task_id,
+                                    topic=topic,
+                                    source=source,
+                                    language=language,
+                                    text=content
+                                )
+                                if result_id:
+                                    logger.info(f"Successfully inserted result for topic {topic} with ID {result_id}")
+                                else:
+                                    logger.error(f"Failed to insert result for topic {topic} - No result ID returned")
+                            except Exception as e:
+                                logger.error(f"Error inserting result into MongoDB for topic {topic}: {str(e)}")
+                                logger.error(f"Data being inserted - Task ID: {task_id}, Topic: {topic}, Source: {source}, Language: {language}, Content length: {len(content)}")
+                    
+                    results[source] = content
+                    
+                except Exception as e:
+                    logger.error(f"Error processing Wikipedia crawl for topic {topic}: {str(e)}")
+                    results[source] = ""
             elif source == "nature":
-                results[source] = await self.crawl_nature(topic)
+                results[source] = await self.crawl_nature(topic, language)
             elif source == "pubmed":
                 results[source] = await self.crawl_pubmed(topic)
         return results
 
     async def close(self):
+        """Đóng kết nối"""
         # No need to close anything for wikipedia-api
         pass 
 
