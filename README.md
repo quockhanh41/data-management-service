@@ -9,6 +9,98 @@ Hệ thống quản lý và crawl dữ liệu từ nhiều nguồn khác nhau.
 - Redis 7.0+
 - RabbitMQ 3.12+
 
+## API Documentation
+
+### Base URL
+```
+data-management-service-production.up.railway.app/api/v1
+```
+
+### Local Development
+```
+http://localhost:8000/api/v1
+```
+
+### 1. Crawl Data
+```http
+POST /data/crawl
+```
+
+Request body:
+```json
+{
+    "topic": "chủ đề cần tìm hiểu",
+    "sources": ["wikipedia", "nature", "pubmed"],
+    "language": "vi"
+}
+```
+
+Response:
+```json
+{
+    "message": "Đang tiến hành crawl dữ liệu...",
+    "taskId": "task_id",
+    "extractedTopics": ["chủ đề 1", "chủ đề 2"]
+}
+```
+
+### 2. Check Task Status
+```http
+GET /data/status/{task_id}
+```
+
+Response:
+```json
+{
+    "taskId": "task_id",
+    "status": "completed",
+    "resultIds": ["result_id_1", "result_id_2"]
+}
+```
+
+### 3. Get Crawl Result
+```http
+GET /data/result/{result_id}
+```
+
+Response:
+```json
+{
+    "resultId": "result_id",
+    "topic": "chủ đề",
+    "source": "nguồn",
+    "language": "vi",
+    "text": "nội dung"
+}
+```
+
+### 4. Get Popular Topics
+```http
+GET /data/popular-topics?limit=5
+```
+
+Response:
+```json
+["chủ đề 1", "chủ đề 2", "chủ đề 3", "chủ đề 4", "chủ đề 5"]
+```
+
+### 5. Health Check
+```http
+GET /health
+```
+
+Response:
+```json
+{
+    "status": "healthy",
+    "services": {
+        "mongodb": "connected",
+        "redis": "connected",
+        "rabbitmq": "connected"
+    }
+}
+```
+
 ## Các Service Chính
 
 ### 1. Crawler Service
