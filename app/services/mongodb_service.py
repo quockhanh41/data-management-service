@@ -38,20 +38,18 @@ class MongoDBService:
             list: Danh sách các chủ đề phổ biến
         """
         try:
-            # Lấy các chủ đề được tìm kiếm nhiều nhất trong 24h qua
+            # Lấy các chủ đề được tìm kiếm nhiều nhất trong tất cả thời gian
             pipeline = [
                 {
                     "$match": {
-                        "created_at": {
-                            "$gte": datetime.now(UTC).replace(hour=0, minute=0, second=0, microsecond=0)
-                        },
-                        "topics": {"$exists": True, "$ne": []}
+                        "topics": {"$exists": True, "$ne": []},
+                        "status": "completed"  # Chỉ lấy các task đã hoàn thành
                     }
                 },
                 {"$unwind": "$topics"},
                 {"$group": {"_id": "$topics", "count": {"$sum": 1}}},
                 {"$sort": {"count": -1}},
-                # {"$limit": limit * 2}  # Lấy gấp đôi để dự phòng
+                {"$limit": limit * 2}  # Lấy gấp đôi để dự phòng
             ]
             
             cursor = self.tasks_collection.aggregate(pipeline)

@@ -92,8 +92,7 @@ class RedisService:
             await self._ensure_connection()
             await self.redis_client.set(
                 "popular_topics",
-                json.dumps(topics),
-                ex=3600  # TTL 1 giờ
+                json.dumps(topics)
             )
             logger.info(f"Updated list of {len(topics)} popular topics in Redis")
         except Exception as e:
@@ -117,6 +116,7 @@ class RedisService:
         try:
             mongodb_service = MongoDBService()
             popular_topics = await mongodb_service.get_popular_topics()
+            print(popular_topics)
             await self.update_popular_topics_for_redis(popular_topics)
             logger.info(f"Updated Redis with {len(popular_topics)} topics from MongoDB")
         except Exception as e:
