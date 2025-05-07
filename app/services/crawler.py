@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class Crawler:
     def __init__(self, redis_service, mongodb_service):
         self.wiki = wikipediaapi.Wikipedia(
-            # user_agent=os.getenv('WIKIPEDIA_API_USER_AGENT'),
+            user_agent=os.getenv('WIKIPEDIA_API_USER_AGENT'),
             language='en'  # Default language, will be changed in crawl_wikipedia
         )
         self.redis_service = redis_service

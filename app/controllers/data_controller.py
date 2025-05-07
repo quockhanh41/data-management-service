@@ -19,7 +19,6 @@ mongodb_service = MongoDBService()
 crawl_service = CrawlService()
 
 class CrawlRequest(BaseModel):
-    job_id: str
     userId: str
     topic: str
     sources: List[str]
@@ -27,6 +26,12 @@ class CrawlRequest(BaseModel):
     style: str
     language: str
     length: str
+    limit: int = 1
+
+class CrawlResponse(BaseModel):
+    message: str
+    job_id: str
+    extractedTopics: List[str]
 
 class CrawlStatusResponse(BaseModel):
     taskId: str
@@ -45,18 +50,18 @@ async def get_popular_topics():
     """Lấy danh sách chủ đề phổ biến"""
     return await redis_service.get_popular_topics_from_redis()
 
-@router.post("/data/crawl")
+@router.post("/data/crawl", response_model=CrawlResponse)
 async def crawl_data(request: CrawlRequest):
     """Tạo task crawl mới"""
     return await crawl_service.create_crawl_task(
-        job_id=request.job_id,
         userId=request.userId,
         topic=request.topic,
         sources=request.sources,
         audience=request.audience,
         style=request.style,
         language=request.language,
-        length=request.length
+        length=request.length,
+        limit=request.limit
     )
 
 @router.get("/data/status/{task_id}", response_model=CrawlStatusResponse)
