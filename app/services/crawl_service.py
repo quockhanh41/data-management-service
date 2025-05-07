@@ -18,13 +18,18 @@ class CrawlService:
         self.gemini_service = GeminiService()
         self.crawler = Crawler(self.redis_service, self.mongodb_service)
 
-    async def create_crawl_task(self, topic: str, sources: List[str], language: str) -> Dict[str, Any]:
+    async def create_crawl_task(self, job_id: str, userId: str, topic: str, sources: List[str], audience: str, style: str, language: str, length: str) -> Dict[str, Any]:
         """Tạo task crawl mới
         
         Args:
+            job_id: ID duy nhất của job
+            userId: ID của người dùng
             topic: Chủ đề cần crawl
             sources: Danh sách nguồn dữ liệu
+            audience: Đối tượng mục tiêu
+            style: Phong cách nội dung
             language: Ngôn ngữ
+            length: Độ dài mong muốn
             
         Returns:
             Dict chứa thông tin task và chủ đề đã trích xuất
@@ -35,10 +40,15 @@ class CrawlService:
             
             # Tạo task mới
             task = Task(
+                job_id=job_id,
+                userId=userId,
                 input_user=topic,
                 topics=extracted_topics,
                 sources=sources,
+                audience=audience,
+                style=style,
                 language=language,
+                length=length,
                 status=TaskStatus.PENDING,
                 created_at=datetime.now(UTC)
             )
@@ -52,9 +62,14 @@ class CrawlService:
             await self.rabbitmq_service.publish_crawl_task(
                 task_id,
                 {
+                    "job_id": job_id,
+                    "userId": userId,
                     "topics": extracted_topics,
                     "sources": sources,
-                    "language": language
+                    "audience": audience,
+                    "style": style,
+                    "language": language,
+                    "length": length
                 }
             )
             
@@ -77,6 +92,8 @@ class CrawlService:
         task_id = data["task_id"]
         crawl_data = data["data"]
         crawler = None
+        all_results = []
+        limit = crawl_data.get("limit", 5)  # Mặc định giới hạn 5 kết quả
 
         try:
             logger.info(f"Processing task {task_id}")
@@ -109,6 +126,23 @@ class CrawlService:
                         continue
                         
                     logger.info(f"Successfully crawled topic {topic} from sources: {list(valid_results.keys())}")
+                    
+                    # Thêm kết quả vào danh sách
+                    for source, content in valid_results.items():
+                        all_results.append({
+                            "title": topic,
+                            "content": content
+                        })
+                        
+                        # Kiểm tra giới hạn số lượng kết quả
+                        if len(all_results) >= limit:
+                            logger.info(f"Reached limit of {limit} results")
+                            break
+                    
+                    # Nếu đã đạt giới hạn, dừng vòng lặp
+                    if len(all_results) >= limit:
+                        break
+                        
                 except Exception as e:
                     logger.error(f"Error crawling topic {topic}: {str(e)}")
                     continue
@@ -120,6 +154,22 @@ class CrawlService:
             # Cập nhật trạng thái hoàn thành
             await self.mongodb_service.update_task_status(task_id, TaskStatus.COMPLETED)
             logger.info(f"Task {task_id} completed successfully")
+            
+            # Gửi dữ liệu lên script_generate_queue
+            if all_results:
+                generate_data = {
+                    "job_id": crawl_data["job_id"],
+                    "userId": crawl_data["userId"],
+                    "crawl_data": all_results[:limit],  # Đảm bảo không vượt quá giới hạn
+                    "audience": crawl_data["audience"],
+                    "style": crawl_data["style"],
+                    "language": crawl_data["language"],
+                    "length": crawl_data["length"]
+                }
+                
+                await self.rabbitmq_service.publish_generate_task(generate_data)
+                logger.info(f"Published data to script_generate_queue for job {crawl_data['job_id']}")
+            
         except Exception as e:
             logger.error(f"Error processing task {task_id}: {str(e)}")
             # Cập nhật trạng thái lỗi

@@ -24,7 +24,7 @@ class RabbitMQService:
                 os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost/")
             )
             self.channel = await self.connection.channel()
-            self.queue = await self.channel.declare_queue("crawl_queue", durable=True)
+            self.queue = await self.channel.declare_queue("crawl_data_queue", durable=True)
             self._is_connected = True
             print("Connected to RabbitMQ successfully")
         except Exception as e:
@@ -53,7 +53,7 @@ class RabbitMQService:
                 body=json.dumps(message).encode(),
                 delivery_mode=aio_pika.DeliveryMode.PERSISTENT
             ),
-            routing_key="crawl_queue"
+            routing_key="crawl_data_queue"
         )
 
     async def consume_crawl_tasks(self, callback):
@@ -67,4 +67,23 @@ class RabbitMQService:
                         data = json.loads(message.body.decode())
                         await callback(data)
                     except Exception as e:
-                        print(f"Error processing message: {str(e)}") 
+                        print(f"Error processing message: {str(e)}")
+
+    async def publish_generate_task(self, data: dict):
+        """Gửi task generate vào queue
+        
+        Args:
+            data: Dữ liệu cần gửi lên script_generate_queue
+        """
+        await self.ensure_connection()
+        
+        # Khai báo queue mới nếu chưa tồn tại
+        generate_queue = await self.channel.declare_queue("script_generate_queue", durable=True)
+        
+        await self.channel.default_exchange.publish(
+            aio_pika.Message(
+                body=json.dumps(data).encode(),
+                delivery_mode=aio_pika.DeliveryMode.PERSISTENT
+            ),
+            routing_key="script_generate_queue"
+        ) 

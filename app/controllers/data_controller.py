@@ -19,9 +19,14 @@ mongodb_service = MongoDBService()
 crawl_service = CrawlService()
 
 class CrawlRequest(BaseModel):
+    job_id: str
+    userId: str
     topic: str
-    sources: List
+    sources: List[str]
+    audience: str
+    style: str
     language: str
+    length: str
 
 class CrawlStatusResponse(BaseModel):
     taskId: str
@@ -44,9 +49,14 @@ async def get_popular_topics():
 async def crawl_data(request: CrawlRequest):
     """Tạo task crawl mới"""
     return await crawl_service.create_crawl_task(
+        job_id=request.job_id,
+        userId=request.userId,
         topic=request.topic,
         sources=request.sources,
-        language=request.language
+        audience=request.audience,
+        style=request.style,
+        language=request.language,
+        length=request.length
     )
 
 @router.get("/data/status/{task_id}", response_model=CrawlStatusResponse)

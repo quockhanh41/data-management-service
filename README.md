@@ -29,9 +29,14 @@ POST /data/crawl
 Request body:
 ```json
 {
+    "job_id": "550e8400-e29b-41d4-a716-446655440000",
+    "userId": "user123",
     "topic": "chủ đề cần tìm hiểu",
-    "sources": ["wikipedia", "nature", "pubmed"],
-    "language": "vi"
+    "sources": ["wikipedia"],
+    "audience": "general",
+    "style": "formal",
+    "language": "vi",
+    "length": "medium"
 }
 ```
 
@@ -101,6 +106,54 @@ Response:
 }
 ```
 
+## Message Queues
+
+### 1. Crawl Data Queue
+Queue này nhận các task crawl dữ liệu từ các nguồn khác nhau.
+
+Payload format:
+```json
+{
+    "task_id": "task_id",
+    "data": {
+        "job_id": "550e8400-e29b-41d4-a716-446655440000",
+        "userId": "user123",
+        "topics": ["chủ đề 1", "chủ đề 2"],
+        "sources": ["wikipedia"],
+        "audience": "general",
+        "style": "formal",
+        "language": "vi",
+        "length": "medium",
+        "limit": 5
+    }
+}
+```
+
+### 2. Script Generate Queue
+Queue này nhận dữ liệu đã crawl để tạo nội dung mới.
+
+Payload format:
+```json
+{
+    "job_id": "550e8400-e29b-41d4-a716-446655440000",
+    "userId": "user123",
+    "crawl_data": [
+        {
+            "title": "chủ đề 1",
+            "content": "nội dung crawl được từ chủ đề 1"
+        },
+        {
+            "title": "chủ đề 2",
+            "content": "nội dung crawl được từ chủ đề 2"
+        }
+    ],
+    "audience": "general",
+    "style": "formal",
+    "language": "vi",
+    "length": "medium"
+}
+```
+
 ## Các Service Chính
 
 ### 1. Crawler Service
@@ -165,10 +218,15 @@ Service quản lý message queue với RabbitMQ.
 ```json
 {
     "_id": "ObjectId",
+    "job_id": "string",
+    "userId": "string",
     "input_user": "string",
     "topics": ["string"],
     "sources": ["string"],
+    "audience": "string",
+    "style": "string",
     "language": "string",
+    "length": "string",
     "status": "string",
     "result_ids": ["string"],
     "created_at": "datetime",
@@ -207,15 +265,18 @@ pip install -r requirements.txt
 
 3. Cấu hình biến môi trường:
 ```bash
-export MONGODB_URI="mongodb://localhost:27017"
-export REDIS_URL="redis://localhost:6379"
-export RABBITMQ_URL="amqp://localhost:5672"
-export GEMINI_API_KEY="your_gemini_api_key"
+cp .env.example .env
+# Chỉnh sửa các biến môi trường trong file .env
 ```
 
-4. Chạy service:
+4. Chạy ứng dụng:
 ```bash
-python main.py
+uvicorn main:app --reload
+```
+
+5. Chạy consumer để xử lý các task:
+```bash
+python consume_messages.py
 ```
 
 ## Deploy trên Railway

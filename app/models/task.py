@@ -9,10 +9,15 @@ class TaskStatus(str):
     FAILED = "failed"
 
 class Task(BaseModel):
+    job_id: str
+    userId: str
     input_user: str
     topics: List[str]
     sources: List[str]  
+    audience: str
+    style: str
     language: str
+    length: str
     status: TaskStatus = TaskStatus.PENDING
     result_ids: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
