@@ -63,6 +63,7 @@ class CrawlService:
                 task_id,
                 {
                     "userId": userId,
+                    "input_user": topic,
                     "topics": extracted_topics,
                     "sources": sources,
                     "audience": audience,
@@ -160,6 +161,7 @@ class CrawlService:
                 generate_data = {
                     "job_id": task_id,  # Sử dụng task_id làm job_id
                     "userId": crawl_data["userId"],
+                    "input_user": crawl_data["input_user"],
                     "crawl_data": all_results[:limit],  # Đảm bảo không vượt quá giới hạn
                     "audience": crawl_data["audience"],
                     "style": crawl_data["style"],
