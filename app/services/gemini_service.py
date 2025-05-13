@@ -61,7 +61,7 @@ class GeminiService:
             else:
                 prompt = f"""
                 Analyze the following content and extract Wikipedia-searchable topics:
-                "{user_input} in {language}"
+                "{user_input}" in "{language}" language
 
                 Requirements:
                 1. Extract only topics that can be searched on Wikipedia
@@ -121,7 +121,7 @@ if __name__ == "__main__":
 
     async def main():
         gemini_service = GeminiService()
-        topic = await gemini_service.extract_topic("Tôi muốn tìm hiểu về các chủ đề liên quan đến khoa học máy tính và công nghệ thông tin", "vi")
+        topic = await gemini_service.extract_topic("Tôi muốn tìm hiểu về các chủ đề liên quan đến fruta", "es")
         print(topic)
     
     asyncio.run(main())
