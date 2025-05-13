@@ -18,7 +18,7 @@ class Task(BaseModel):
     style: str
     language: str
     length: str
-    limit: int = 1
+    limit: int = 3
     status: TaskStatus = TaskStatus.PENDING
     result_ids: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

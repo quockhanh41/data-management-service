@@ -26,7 +26,7 @@ class CrawlRequest(BaseModel):
     style: str
     language: str
     length: str
-    limit: int = 1
+    limit: int = 3
 
 class CrawlResponse(BaseModel):
     message: str
