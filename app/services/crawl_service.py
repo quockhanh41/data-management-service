@@ -168,9 +168,11 @@ class CrawlService:
                     "language": crawl_data["language"],
                     "length": crawl_data["length"]
                 }
-                
+            
+            
                 await self.rabbitmq_service.publish_generate_task(generate_data)
                 logger.info(f"Published data to script_generate_queue for job {task_id}")
+                logger.info(f"Published data: {generate_data}")
             
         except Exception as e:
             logger.error(f"Error processing task {task_id}: {str(e)}")
